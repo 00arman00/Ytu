@@ -1,0 +1,1029 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== MULTI-TENANT COMPANY ====================
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logo        String?
+  website     String?
+  industry    String?
+  country     String?
+  brandColors String?
+  targetAudience String?
+  marketingGoals String?
+  plan        String   @default("free")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users         CompanyUser[]
+  socialAccounts SocialAccount[]
+  campaigns     Campaign[]
+  contents      Content[]
+  seoChallenges SeoChallenge[]
+  leads         Lead[]
+  contacts      Contact[]
+  deals         Deal[]
+  tickets       Ticket[]
+  aiAgents      AiAgent[]
+  auditLogs     AuditLog[]
+  subscriptions Subscription[]
+  invitations   Invitation[]
+  departments   Department[]
+  employees     Employee[]
+  knowledgeNodes KnowledgeNode[]
+  toolConnections ToolConnection[]
+  webhooks        Webhook[]
+  apiKeys         ApiKey[]
+  announcements   Announcement[]
+  activities      Activity[]
+  feedSources     FeedSource[]
+  feedItems       FeedItem[]
+  smsMessages     SmsMessage[]
+  competitors     Competitor[]
+  keywordTrackers KeywordTracker[]
+  workflows       Workflow[]
+  workflowRuns    WorkflowRun[]
+}
+
+// ==================== USER & ROLES ====================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  avatar        String?
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  companyUsers  CompanyUser[]
+  auditLogs     AuditLog[]
+  aiChatMessages AiChatMessage[]
+  createdContents Content[] @relation("ContentCreator")
+  sessions      UserSession[]
+  notifications  Notification[]  // notifications addressed to this user
+  sentMessages   Message[]  @relation("MessageSender")
+  receivedMessages Message[] @relation("MessageRecipient")
+  announcements  Announcement[] @relation("AnnouncementCreator")
+  activities     Activity[] @relation("ActivityActor")
+  sentSms        SmsMessage[] @relation("SmsSender")
+  createdWorkflows Workflow[] @relation("WorkflowCreator")
+}
+
+model CompanyUser {
+  id          String   @id @default(cuid())
+  role        String   @default("team_member")
+  permissions String   @default("{}")
+  joinedAt    DateTime @default(now())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  leadsAssigned      Lead[]  @relation("LeadAssignee")
+  ticketsAssigned    Ticket[] @relation("TicketAssignee")
+  ticketMessages     TicketMessage[]
+
+  @@unique([userId, companyId])
+}
+
+// ==================== SOCIAL MEDIA ACCOUNTS ====================
+
+model SocialAccount {
+  id              String   @id @default(cuid())
+  platform        String
+  accountName     String
+  accountHandle   String?
+  accountId       String?
+  avatarUrl       String?
+  accessToken     String
+  refreshToken    String?
+  tokenExpiresAt  DateTime?
+  scopes          String   @default("[]")
+  webhookUrl      String?
+  status          String   @default("active")
+  lastSyncedAt    DateTime?
+  connectedAt     DateTime @default(now())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== CONTENT & MEDIA ====================
+
+model Content {
+  id            String   @id @default(cuid())
+  title         String
+  type          String
+  status        String   @default("draft")
+  platform      String?
+  body          String?
+  mediaUrl      String?
+  mediaType     String?
+  thumbnailUrl  String?
+  hashtags      String?
+  scheduledAt   DateTime?
+  publishedAt   DateTime?
+  engagement    String   @default("{}")
+  aiGenerated   Boolean  @default(false)
+  creatorId     String?
+  creator       User?    @relation("ContentCreator", fields: [creatorId], references: [id])
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  campaignId    String?
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ==================== CAMPAIGNS ====================
+
+model Campaign {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  status      String   @default("draft")
+  budget      Float?
+  startDate   DateTime?
+  endDate     DateTime?
+  metrics     String   @default("{}")
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  contents Content[]
+}
+
+// ==================== CRM ====================
+
+model Lead {
+  id            String   @id @default(cuid())
+  name          String
+  email         String?
+  phone         String?
+  companyName   String?
+  source        String?
+  status        String   @default("new")
+  score         Int      @default(0)
+  notes         String?
+  assignedToId  String?
+  assignedTo    CompanyUser? @relation("LeadAssignee", fields: [assignedToId], references: [id])
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  dealId        String?
+  deal          Deal?    @relation(fields: [dealId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  activities  LeadActivity[]
+  tags        LeadTag[]
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  name        String
+  email       String?
+  phone       String?
+  companyName String?
+  position    String?
+  source      String?
+  notes       String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Deal {
+  id          String   @id @default(cuid())
+  name        String
+  value       Float    @default(0)
+  stage       String   @default("prospect")
+  probability Int      @default(0)
+  closeDate   DateTime?
+  notes       String?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leads  Lead[]
+}
+
+model Ticket {
+  id          String   @id @default(cuid())
+  subject     String
+  description String?
+  status      String   @default("open")
+  priority    String   @default("medium")
+  assignedToId String?
+  assignedTo  CompanyUser? @relation("TicketAssignee", fields: [assignedToId], references: [id])
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  messages TicketMessage[]
+}
+
+model TicketMessage {
+  id        String   @id @default(cuid())
+  content   String
+  senderId  String?
+  sender    CompanyUser? @relation(fields: [senderId], references: [id])
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  type      String
+  content   String?
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model LeadTag {
+  id        String   @id @default(cuid())
+  name      String
+  leadId    String
+  lead      Lead     @relation(fields: [leadId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ==================== SEO ====================
+
+model SeoChallenge {
+  id             String   @id @default(cuid())
+  name           String
+  websiteUrl     String
+  targetKeywords String?
+  duration       Int      @default(60)
+  status         String   @default("active")
+  currentDay     Int      @default(0)
+  score          Int      @default(0)
+  tasks          String   @default("[]")
+  results        String   @default("{}")
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  dailyTasks SeoDailyTask[]
+}
+
+model SeoDailyTask {
+  id             String   @id @default(cuid())
+  day            Int
+  title          String
+  description    String?
+  category       String
+  status         String   @default("pending")
+  completedAt    DateTime?
+  challengeId    String
+  challenge      SeoChallenge @relation(fields: [challengeId], references: [id])
+  createdAt      DateTime @default(now())
+}
+
+// ==================== AI AGENTS (LEGACY - KEPT FOR BACKWARD COMPAT) ====================
+
+model AiAgent {
+  id          String   @id @default(cuid())
+  name        String
+  type        String
+  description String?
+  config      String   @default("{}")
+  isEnabled   Boolean  @default(true)
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AiChatMessage {
+  id        String   @id @default(cuid())
+  role      String
+  content   String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+// ==================== SUBSCRIPTIONS ====================
+
+model Subscription {
+  id          String   @id @default(cuid())
+  plan        String
+  billingCycle String  @default("monthly")
+  amount      Float
+  status      String   @default("active")
+  startsAt    DateTime @default(now())
+  endsAt      DateTime?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ==================== INVITATIONS ====================
+
+model Invitation {
+  id          String   @id @default(cuid())
+  email       String
+  role        String   @default("team_member")
+  token       String   @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+// ==================== AUDIT LOG ====================
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  resource   String
+  resourceId String?
+  details    String?
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  companyId  String?
+  company    Company?  @relation(fields: [companyId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id          String    @id @default(cuid())
+  userId      String                    // recipient — user who should see it
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type        String                    // lead.created | deal.won | ticket.assigned | campaign.completed | system | announcement
+  title       String
+  message     String
+  link        String?                  // URL to navigate to when clicked
+  isRead      Boolean   @default(false)
+  readAt      DateTime?
+  metadata    String    @default("{}") // JSON: extra context
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
+}
+
+// ==================== MESSAGES (Chatwoot-style inbox) ====================
+
+model Message {
+  id           String    @id @default(cuid())
+  content      String
+  senderId     String
+  sender       User     @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId  String
+  recipient    User     @relation("MessageRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  isRead       Boolean   @default(false)
+  readAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([senderId, recipientId])
+  @@index([recipientId, isRead])
+}
+
+// ==================== ANNOUNCEMENTS ====================
+
+model Announcement {
+  id           String    @id @default(cuid())
+  title        String
+  content      String
+  priority     String    @default("normal")  // low | normal | high
+  targetRoles  String    @default("all")      // JSON array of role keys, or "all"
+  isActive     Boolean   @default(true)
+  expiresAt    DateTime?
+  createdBy    String?
+  creator      User?     @relation("AnnouncementCreator", fields: [createdBy], references: [id])
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// ==================== ACTIVITY FEED (company-wide) ====================
+
+model Activity {
+  id           String    @id @default(cuid())
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?     @relation("ActivityActor", fields: [userId], references: [id])
+  type         String                    // lead.created | deal.won | content.published | campaign.completed | ...
+  description  String
+  resourceType String?                  // lead | deal | contact | ticket | campaign | content | ...
+  resourceId   String?
+  metadata     String    @default("{}") // JSON
+  createdAt    DateTime  @default(now())
+
+  @@index([companyId, createdAt])
+}
+
+// ========================================================================
+// AI WORKFORCE - THE 2,000 EMPLOYEE SYSTEM
+// ========================================================================
+
+// ==================== DEPARTMENTS ====================
+// Organizational departments that house AI employees
+
+model Department {
+  id            String   @id @default(cuid())
+  name          String
+  code          String   @unique  // e.g. "MKT", "ENG", "FIN"
+  description   String?
+  parentId      String?               // For sub-departments
+  parent        Department?  @relation("DeptHierarchy", fields: [parentId], references: [id])
+  children      Department[]  @relation("DeptHierarchy")
+  level         Int      @default(0)  // 0=executive, 1=director, 2=department, 3=team
+  sortOrder     Int      @default(0)
+  icon          String?
+  color         String?
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  employees     Employee[]
+  sops          Sop[]
+  knowledgeNodes KnowledgeNode[]
+}
+
+// ==================== EMPLOYEE (AI EMPLOYEE) ====================
+// Each AI Employee is a specialized agent with identity, role, skills, KPIs
+
+model Employee {
+  id              String   @id @default(cuid())
+  employeeId      String   @unique     // e.g. "EMP-0001"
+  name            String
+  title           String               // e.g. "Chief Marketing Officer"
+  level           String   @default("specialist") // executive, director, manager, supervisor, specialist, worker
+  status          String   @default("idle")       // idle, working, busy, offline, training
+  avatar          String?
+  mission         String               // What this employee exists to do
+  constitution     String?              // Behavioral rules and constraints
+  authority       String   @default("{}") // JSON: what they can authorize
+  permissions     String   @default("{}") // JSON: RBAC permissions
+
+  // Specialization
+  departmentId    String
+  department      Department @relation(fields: [departmentId], references: [id])
+  reportsToId     String?
+  reportsTo       Employee?  @relation("EmpHierarchy", fields: [reportsToId], references: [id])
+  directReports   Employee[]  @relation("EmpHierarchy")
+
+  // Skills & Capabilities
+  skills          String   @default("[]") // JSON array of skill IDs/names
+  capabilities    String   @default("[]") // JSON: what this employee can DO
+  tools           String   @default("[]") // JSON: tools this employee can use
+
+  // Model Configuration
+  preferredModel  String?              // Preferred AI model for this employee
+  modelTier       String   @default("balanced") // fast, balanced, reasoning, coding, vision, specialized
+  modelConfig     String   @default("{}") // JSON: model-specific config
+
+  // KPIs & Performance
+  kpis            String   @default("[]") // JSON: KPI definitions
+  currentKpis     String   @default("{}") // JSON: current KPI values
+  totalTasks      Int      @default(0)
+  completedTasks  Int      @default(0)
+  failedTasks     Int      @default(0)
+  successRate     Float    @default(0)
+  avgLatencyMs    Int      @default(0)
+  lastActiveAt    DateTime?
+
+  // Collaboration Rules
+  canDelegate     Boolean  @default(false)
+  canConsult      Boolean  @default(true)
+  canReview       Boolean  @default(false)
+  canEscalate     Boolean  @default(true)
+  collaborationRules String @default("{}")
+
+  // Escalation
+  escalationRules String   @default("[]") // JSON: when/how to escalate
+  escalationPath  String   @default("[]") // JSON: chain of escalation
+
+  // System
+  isEnabled       Boolean  @default(true)
+  isAvailable     Boolean  @default(true)
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  executions      TaskExecution[]
+  memories        EmployeeMemory[]
+  conversations   WorkforceConversation[]
+}
+
+// ==================== TASK EXECUTION ====================
+// Every task an AI employee executes is tracked here - NO FAKE DATA
+
+model TaskExecution {
+  id              String   @id @default(cuid())
+  taskId          String   @unique     // External task ID
+
+  // Task Info
+  title           String
+  description     String?
+  taskType        String               // e.g. "content_creation", "seo_analysis", "lead_qualification"
+  complexity      String   @default("standard") // simple, standard, complex, enterprise
+  executionPath   String   @default("fast")     // fast, standard, complex, enterprise
+  priority        String   @default("medium")
+
+  // Agent Assignment
+  // Optional — AI agents (AiAgent table) don't have an Employee row, only the workforce does.
+  // Real workforce tasks have assignedEmployeeId set; AI agent runs leave it null.
+  assignedEmployeeId String?
+  assignedEmployee   Employee? @relation(fields: [assignedEmployeeId], references: [id])
+  delegatedById     String?
+  reviewedById      String?
+
+  // Execution
+  status          String   @default("pending") // pending, running, completed, failed, escalated, validated
+  input           String   @default("{}")     // JSON: task input/context
+  output          String?                   // JSON: task result
+  modelUsed       String?                   // Which model was actually used
+  modelTier       String?                   // fast, balanced, reasoning, etc.
+  promptTokens    Int      @default(0)
+  completionTokens Int     @default(0)
+  latencyMs       Int      @default(0)
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  // Knowledge & Memory Used
+  skillsUsed      String   @default("[]") // JSON: skills loaded
+  sopsUsed        String   @default("[]") // JSON: SOPs followed
+  knowledgeUsed   String   @default("[]") // JSON: knowledge nodes retrieved
+  memoryUsed      String   @default("[]") // JSON: memory types accessed
+  ragUsed         Boolean  @default(false)
+
+  // Quality
+  validationStatus String?  // passed, failed, skipped
+  validationScore  Float?
+  validatorId      String?
+  qualityNotes     String?
+
+  // Self-Healing
+  retryCount      Int      @default(0)
+  maxRetries      Int      @default(3)
+  fallbackModel   String?
+  fallbackReason  String?
+
+  // Collaboration
+  collaborationType String? // solo, delegated, consulted, parallel, synthesized
+  parentTaskId     String?  // For sub-tasks
+  childTaskIds     String   @default("[]") // JSON
+  consultedEmployees String @default("[]") // JSON
+
+  // Learning
+  lessonLearned   String?
+  improvementTags String   @default("[]") // JSON
+
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== EMPLOYEE MEMORY ====================
+// Different memory types for each employee
+
+model EmployeeMemory {
+  id              String   @id @default(cuid())
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id])
+
+  memoryType      String               // working, episodic, semantic, procedural, department, organizational
+  category        String?              // Sub-category for organization
+  title           String
+  content         String               // The actual memory content
+  metadata        String   @default("{}") // JSON: extra context
+  relevance       Float    @default(1.0) // Relevance score 0-1
+  accessCount     Int      @default(0)
+  lastAccessedAt  DateTime?
+
+  // Source tracking
+  sourceType      String?              // execution, lesson, approval, external
+  sourceId        String?
+
+  // Governance
+  isApproved      Boolean  @default(false)
+  approvedById    String?
+  expiresAt       DateTime?
+
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== KNOWLEDGE NODE ====================
+// RAG-ready knowledge entries
+
+model KnowledgeNode {
+  id              String   @id @default(cuid())
+  title           String
+  content         String               // The knowledge content
+  summary         String?              // Short summary for quick matching
+  nodeType        String   @default("document") // document, faq, guideline, template, policy, best_practice
+  tags            String   @default("[]") // JSON: searchable tags
+  category        String?
+
+  // Embedding for similarity search (stored as JSON array of floats)
+  embedding       String?              // JSON: vector embedding
+
+  // Access Control
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  accessLevel     String   @default("company") // public, department, role, restricted
+  accessRoles     String   @default("[]") // JSON: roles that can access
+
+  // Usage tracking
+  accessCount     Int      @default(0)
+  rating          Float    @default(0)    // User-rated quality 0-5
+
+  // Source
+  sourceUrl       String?
+  sourceType      String?
+
+  companyId       String
+  company         Company?  @relation(fields: [companyId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== SOP (Standard Operating Procedure) ====================
+// Executable procedures for agents
+
+model Sop {
+  id              String   @id @default(cuid())
+  name            String
+  description     String?
+  version         Int      @default(1)
+  category        String               // e.g. "content_creation", "lead_qualification"
+  triggerConditions String @default("[]") // JSON: when this SOP should be triggered
+
+  // SOP Steps (JSON array of step objects)
+  steps           String   @default("[]")
+  // Each step: { order, title, description, decisionPoints: [], validations: [] }
+
+  // Preconditions
+  preconditions    String   @default("[]") // JSON: what must be true before execution
+
+  // Which employees/departments this SOP applies to
+  departmentId    String?
+  department      Department? @relation(fields: [departmentId], references: [id])
+  applicableRoles String   @default("[]") // JSON: employee levels that should follow this
+  applicableTasks String   @default("[]") // JSON: task types that trigger this SOP
+
+  isActive        Boolean  @default(true)
+  usageCount      Int      @default(0)
+  successRate     Float    @default(0)
+
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== WORKFORCE CONVERSATION ====================
+// Multi-turn conversation with specific AI employees
+
+model WorkforceConversation {
+  id              String   @id @default(cuid())
+  employeeId      String
+  employee        Employee @relation(fields: [employeeId], references: [id])
+  userId          String
+
+  // Messages stored as JSON array for efficiency
+  // Each: { role: 'user'|'agent'|'system', content, timestamp, modelUsed, skillsLoaded, memoryAccessed }
+  messages        String   @default("[]")
+  messageCount    Int      @default(0)
+
+  // Context loaded for this conversation
+  skillsLoaded    String   @default("[]") // JSON
+  knowledgeLoaded String   @default("[]") // JSON
+  memoryAccessed  String   @default("[]") // JSON
+  sopsLoaded      String   @default("[]") // JSON
+
+  // Execution context
+  taskContext     String?              // If conversation led to task execution
+  totalTokens     Int      @default(0)
+
+  companyId       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ==================== MODEL CONFIG ====================
+// Available models in the Model Hub
+
+model ModelConfig {
+  id              String   @id @default(cuid())
+  name            String               // e.g. "gpt-4o", "claude-3.5-sonnet"
+  provider        String               // e.g. "openai", "anthropic"
+  tier            String               // fast, balanced, reasoning, coding, vision, embedding, specialized
+  capabilities    String   @default("[]") // JSON: text, vision, function_calling, etc.
+  maxTokens       Int      @default(4096)
+  costPer1kInput  Float    @default(0)
+  costPer1kOutput Float    @default(0)
+  avgLatencyMs    Int      @default(0)
+  qualityScore    Float    @default(0) // Benchmark quality 0-100
+  isEnabled       Boolean  @default(true)
+  isFallback      Boolean  @default(false)
+  fallbackFor     String?              // ID of model this is a fallback for
+  config          String   @default("{}") // JSON: provider-specific config
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ========================================================================
+// TOOL & INTEGRATION SYSTEM — 120+ External Tool Connections
+// ========================================================================
+
+// Master catalog of all available tools/integrations
+model ToolDefinition {
+  id              String   @id @default(cuid())
+  toolNumber      Int      @unique           // e.g. 001, 002, ... 120
+  name            String                     // e.g. "Google Search Console"
+  url             String                     // e.g. "https://search.google.com/search-console"
+  authType        String                     // oauth2, api_key, bot_token, partner, none, internal, webhook
+  
+  // Required environment variables / credentials
+  requiredCredentials String @default("[]") // JSON: [{key: "GOOGLE_CLIENT_ID", label: "Client ID", isSecret: false}, ...]
+  
+  connectionType  String                     // api, rest_api, graph_api, bot_api, webhook, platform, partner_api, internal, tracking, database, redis, automation
+  
+  // Categorization
+  category        String                     // google, meta, social, content, scholarship, university, google_workspace, microsoft, communication, crm, email, ai_provider, payment, tracking, security, notification, infrastructure, devops, bd_platform, alo_internal
+  subcategory     String?                    // e.g. "seo", "paid_ads", "organic", "messaging"
+  
+  capabilities    String                     // e.g. "SEO/keyword/performance data"
+  automationLevel String   @default("MANUAL") // AUTO, LIMITED, MANUAL, CHECK, PARTNER, AUTO/LIMITED, MANUAL/AUTO CONTENT
+  
+  // Status & metadata
+  description     String?
+  icon            String?                    // Icon name from lucide
+  color           String?                    // Brand color hex
+  documentationUrl String?
+  isEnabled       Boolean  @default(true)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  connections     ToolConnection[]
+}
+
+// Actual connections configured per company (stored credentials)
+model ToolConnection {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id])
+  toolId          String
+  tool            ToolDefinition @relation(fields: [toolId], references: [id])
+  
+  // Connection status
+  status          String   @default("disconnected") // disconnected, connecting, active, error, revoked
+  connectedAt     DateTime?
+  lastSyncedAt    DateTime?
+  lastError       String?
+  
+  // Stored credentials (encrypted at rest in production)
+  credentials     String   @default("{}") // JSON: {env_var_name: encrypted_value, ...}
+  
+  // Configuration
+  config          String   @default("{}") // JSON: tool-specific configuration
+  webhooks        String   @default("[]") // JSON: registered webhook URLs
+  scopes          String   @default("[]") // JSON: OAuth scopes granted
+  
+  // Usage tracking
+  totalCalls      Int      @default(0)
+  lastCalledAt    DateTime?
+  errorCount      Int      @default(0)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([companyId, toolId])
+
+  usageLogs       ToolUsageLog[]
+}
+
+// Tool usage logs for audit and analytics
+model ToolUsageLog {
+  id              String   @id @default(cuid())
+  connectionId    String
+  connection      ToolConnection @relation(fields: [connectionId], references: [id])
+  
+  // Who triggered it
+  employeeId      String?                    // AI employee that used the tool
+  userId          String?                    // Human user that triggered it
+  executionId     String?                    // Related task execution
+  
+  // What happened
+  action          String                     // e.g. "fetch_data", "send_message", "create_post"
+  endpoint        String?                    // API endpoint called
+  method          String?                    // HTTP method
+  requestSummary  String?                    // Summary of request
+  responseStatus  Int?                       // HTTP status code
+  durationMs      Int?                       // How long the call took
+  
+  // Result
+  isSuccess       Boolean  @default(false)
+  errorMessage    String?
+  responseData    String?                    // JSON: response data (truncated for large responses)
+  
+  createdAt       DateTime @default(now())
+}
+
+
+// ==================== WEBHOOKS & API KEYS (Settings) ====================
+
+model Webhook {
+  id          String   @id @default(cuid())
+  url         String
+  events      String   @default("[]") // JSON array of event names: ["lead.created", "campaign.completed"]
+  status      String   @default("active") // active | disabled
+  secret      String?                   // for signature verification
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  keyPrefix   String                   // first 8 chars shown in UI
+  hashedKey   String                   // bcrypt hash of the full key
+  lastUsedAt  DateTime?
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model UserSession {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  deviceInfo  String                   // e.g. "Chrome on macOS"
+  ipAddress   String?
+  location    String?
+  lastActiveAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+// ==================== MISSING MODELS — re-added ====================
+
+model FeedSource {
+  id           String   @id @default(cuid())
+  name         String
+  url          String   @unique
+  category     String   @default("general")
+  isActive     Boolean  @default(true)
+  lastFetchedAt DateTime?
+  lastError    String?
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items        FeedItem[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model FeedItem {
+  id           String   @id @default(cuid())
+  sourceId     String
+  source       FeedSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  title        String
+  link         String
+  description  String?
+  author       String?
+  publishedAt  DateTime
+  guid         String?
+  isRead       Boolean  @default(false)
+  isStarred    Boolean  @default(false)
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
+
+model SmsMessage {
+  id           String   @id @default(cuid())
+  to           String
+  from         String?
+  body         String
+  status       String   @default("queued")
+  providerMessageId String?
+  error        String?
+  leadId       String?
+  contactId    String?
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sentBy       String?
+  sender       User?    @relation("SmsSender", fields: [sentBy], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Competitor {
+  id           String   @id @default(cuid())
+  name         String
+  website      String?
+  description  String?
+  strengths    String   @default("[]")
+  weaknesses   String   @default("[]")
+  pricing      String?
+  marketShare  String?
+  threatLevel  String   @default("medium")
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model KeywordTracker {
+  id           String   @id @default(cuid())
+  keyword      String
+  searchVolume Int      @default(0)
+  difficulty   Int      @default(0)
+  trend        String   @default("stable")
+  lastPosition Int?
+  competitorPositions String @default("{}")
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model EnrichmentCache {
+  id           String   @id @default(cuid())
+  domain       String   @unique
+  companyName  String?
+  industry     String?
+  website      String?
+  description  String?
+  logo         String?
+  employees    String?
+  foundedYear  Int?
+  linkedinUrl  String?
+  twitterHandle String?
+  fetchedAt    DateTime @default(now())
+}
+
+model Workflow {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  trigger      String   @default("manual")
+  triggerConfig String  @default("{}")
+  steps        String   @default("[]")
+  isActive     Boolean  @default(false)
+  lastRunAt    DateTime?
+  runCount     Int      @default(0)
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy    String?
+  creator      User?    @relation("WorkflowCreator", fields: [createdBy], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  runs         WorkflowRun[]
+}
+
+model WorkflowRun {
+  id           String   @id @default(cuid())
+  workflowId   String
+  workflow     Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  status       String   @default("pending")
+  trigger      String   @default("manual")
+  input        String   @default("{}")
+  output       String?
+  error        String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+}
